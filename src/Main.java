@@ -98,9 +98,74 @@ public class Main {
             }
         });
 
+
+        // 3. Пошук найкращого міста для пляжу, найхолоднішого та з найбільшим тиском
+        CompletableFuture<Void> analysisFuture = CompletableFuture.supplyAsync(() -> cities)
+                .thenCompose(cityList -> {
+                    List<CompletableFuture<Map<String, Double>>> weatherFutures = cityList.stream()
+                            .map(Main::getWeather)
+                            .collect(Collectors.toList());
+                    return CompletableFuture.allOf(weatherFutures.toArray(new CompletableFuture[0]))
+                            .thenApply(v -> weatherFutures.stream()
+                                    .map(CompletableFuture::join)
+                                    .collect(Collectors.toList()));
+                })
+                .thenAccept(weatherDataList -> {
+                    String bestBeachCity = null;
+                    double maxTemp = Double.MIN_VALUE;
+
+                    String coldestCity = null;
+                    double minTemp = Double.MAX_VALUE;
+
+                    String highestPressureCity = null;
+                    double maxPressure = Double.MIN_VALUE;
+
+                    for (int i = 0; i < cities.size(); i++) {
+                        Map<String, Double> weather = weatherDataList.get(i);
+                        String city = cities.get(i);
+
+                        double temp = weather.get("температура");
+                        double pressure = weather.get("тиск");
+
+                        // Для пляжу (макс. температура)
+                        if (temp > maxTemp) {
+                            maxTemp = temp;
+                            bestBeachCity = city;
+                        }
+
+                        // Для найхолоднішого (мін. температура)
+                        if (temp < minTemp) {
+                            minTemp = temp;
+                            coldestCity = city;
+                        }
+
+                        // Для найбільшого тиску
+                        if (pressure > maxPressure) {
+                            maxPressure = pressure;
+                            highestPressureCity = city;
+                        }
+                    }
+                    System.out.println("--- Аналіз погоди ---");
+                    if (bestBeachCity != null) {
+                        System.out.println("Найкраще місто для пляжу: " + bestBeachCity + " (температура: " + maxTemp + ")");
+                    } else {
+                        System.out.println("Інформація про найкраще місто для пляжу відсутня");
+                    }
+                    if (coldestCity != null) {
+                        System.out.println("Найхолодніше місто: " + coldestCity + " (температура: " + minTemp + ")");
+                    } else {
+                        System.out.println("Інформація про найхолодніше місто відсутня");
+                    }
+                    if (highestPressureCity != null) {
+                        System.out.println("Місто з найбільшим тиском: " + highestPressureCity + " (тиск: " + maxPressure + ")");
+                    } else {
+                        System.out.println("Інформація про місто з найбільшим тиском відсутня");
+                    }
+                });
+
         // Чекаємо завершення всіх завдань (для демонстрації в консольному додатку)
         try {
-            CompletableFuture.allOf(recommendations, weatherAndRecommendation).get();
+            CompletableFuture.allOf(recommendations, weatherAndRecommendation, analysisFuture).get();
         } catch (Exception e) {
             e.printStackTrace();
         }
